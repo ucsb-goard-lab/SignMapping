@@ -1,8 +1,6 @@
 
 function [maps] =  C_widefieldSignMapBIGMONITOR(aziFT_f,aziFT_b,altFT_u,altFT_d,ref_img,SaveDir,k)
  skip_flag = 0;
-% messign wiht ithis on purpose
-
 %additional processing necessary if the reference image is a picture file
 try
     ref_img_mat = rgb2gray(ref_img);
