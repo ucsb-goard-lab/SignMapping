@@ -329,12 +329,7 @@ classdef SignMapper < handle
             axis square
             axis off
         end
-        
-        % Don't open this unless you want to have a bad time, adapted from
-        % Juavinett, A. L., Nauhaus, I., Garrett, M. E., Zhuang, J., & Callaway, E. M. (2017).
-        % Automated identification of mouse visual areas with intrinsic signal imaging.
-        % Nature protocols, 12(1), 32.
-
+      
         function saveSignMaps(obj,maps) % Handling the saving of the maps
             if nargin < 2
                 maps = obj.maps;
@@ -350,6 +345,10 @@ classdef SignMapper < handle
             save('additional_maps.mat','maps');
         end
         
+        % Don't open this unless you want to have a bad time, adapted from
+        % Juavinett, A. L., Nauhaus, I., Garrett, M. E., Zhuang, J., & Callaway, E. M. (2017).
+        % Automated identification of mouse visual areas with intrinsic signal imaging.
+        % Nature protocols, 12(1), 32.
         function maps = Juavinett2017_signMapping(obj,aziPhase,altPhase)
             skip_flag = 0;
             obj.msgPrinter('Processing sign map\n')
