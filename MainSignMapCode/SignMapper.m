@@ -1,125 +1,126 @@
 classdef SignMapper < handle
     
-    
     properties (Constant = true)
-        fs = 10;
+        fs            = 10;        % Sampling rate
         harmonic_pool = [2 3 4 5]; % Pool of ft harmonics to check, probably don't need more...
-        horz_factor =  145/360; % this isn't worknig well right now, so eccentricity is not in degrees, but in arbitrary phase
-        vert_factor = 124/360;
-        pixpermm = 40;
+        horz_factor   =  145/360;  % These are simply for conversion into degrees
+        vert_factor   = 124/360;
+        pixpermm      = 40;        % Info regarding the screen
+        SaveDir       = pwd;       % Parent save directory
     end
     
     properties
-        SaveDir = pwd;
-        stimdata cell
-        data     cell
+        stimdata cell  % Stimulus data file for timestamps
+        data     cell  % DFF data
         
-        ref_img  double
-        maps     struct
+        ref_img  double % Surface reference image
+        maps     struct % Finished maps
         
-        autorun_flag logical = false;
+        autorun_flag logical = false; % For auto-running
+        
+        n_recordings double
     end
-    
     
     methods
         function obj = SignMapper()
-            % Empty constructor?
+            % Nothing to initialize
         end
         
-        function autoRunMapping(obj)
+        function autoRunMapping(obj) % This just puts everything together for autorun
             obj.autorun_flag = true;
-            data_loc = obj.getUserInput();
             
-            [data, stimdata] = obj.getData(data_loc);
+            data_loc = obj.getUserInput(); % Get the input for everything
             
-            [aziResp,altResp] = obj.separateResponseData(data,stimdata);
+            [data, stimdata] = obj.getData(data_loc); % Get and process data into a usable state
             
-            % I might put thees somewhere in there later, but right now they're out because they take a while, and I don't want to re-run every time
+            [aziResp,altResp] = obj.separateResponseData(data,stimdata); % Separate each recording into the cardinal directions, based on timestamps
+            
+            % Run fourier transforms
             fourier_data(:,:,:,1) = fft(aziResp(:,:,:,1),[],3);
             fourier_data(:,:,:,2) = fft(aziResp(:,:,:,2),[],3);
             fourier_data(:,:,:,3) = fft(altResp(:,:,:,1),[],3);
             fourier_data(:,:,:,4) = fft(altResp(:,:,:,2),[],3);
             
             
-            k = obj.findRetinotopicMap(fourier_data);
-            
-            [azi,alt] = obj.getRetinotopicMap(fourier_data,k);
+            k = obj.findRetinotopicMap(fourier_data); % Find the correct harmonic for retinotopic maps
+            [azi,alt] = obj.getRetinotopicMap(fourier_data,k); % Get the retinotopic map of determined harmonic
             
             mkdir('AdditionalSignMapMaterials'); % Additional save directory for supplemental stuff
-            maps = obj.Juavinett2017_signMapping(azi,alt);
-            
-            
-            obj.saveSignMaps(maps);
+            maps = obj.Juavinett2017_signMapping(azi,alt); % Run the sign map creator, from the phase-maps
+            obj.saveSignMaps(maps); % Save everything
         end
         
-        function data_loc = getUserInput(obj)
-            N_recordings = inputdlg('How many recording blocks do you have?');
-            N_recordings = str2num(N_recordings{1});
+        function data_loc = getUserInput(obj) % Get the user input to find the recordings and such
+            n_recordings = inputdlg('How many recording blocks do you have?');
+            obj.n_recordings = str2double(n_recordings{1});
             
+            data_loc = cell(obj.n_recordings,2,3); % recordings x filename/pathname x data/Stimdata/ref_img
             
-            data_loc = cell(N_recordings,2,3); % recordings x filename/pathname x data/Stimdata/ref_img
-            for ii = 1:N_recordings
-                obj.msgPrinter(sprintf('Choose multi-page.tif file for recording #%d/%d \n',ii,N_recordings))
+            for ii = 1:obj.n_recordings % Get the data
+                obj.msgPrinter(sprintf('Choose multi-page.tif file for recording #%d/%d \n',ii,obj.n_recordings))
                 [data_loc{ii,1,1}, data_loc{ii,2,1}] = uigetfile('.tif');
             end
             
-            for ii = 1:N_recordings
-                obj.msgPrinter(sprintf('Choose your stimulus data file for recording #%d/%d \n',ii,N_recordings))
+            for ii = 1:obj.n_recordings % Get the stimulus data
+                obj.msgPrinter(sprintf('Choose your stimulus data file for recording #%d/%d \n',ii,obj.n_recordings))
                 [data_loc{ii,1,2},data_loc{ii,2,2}] = uigetfile('.mat');
             end
             
+            % Get the reference image
             obj.msgPrinter(sprintf('Lastly, choose your reference image for overlay\n'))
             [data_loc{1,1,3}, data_loc{1,2,3}] = uigetfile({'*.jpg;*.png;*.gif;*.tif','All Image Files';...
-                '*.*','All Files' });
-            
+                '*.*','All Files' });         
         end
         
         function [data, stimdata] = getData(obj,data_loc)
-            n_recordings = size(data_loc,1);
-            % first get the stimdat
-            for r = 1:n_recordings
+            obj.n_recordings = size(data_loc,1);
+            
+            % Get the stimulus data
+            stimdata = cell(1,obj.n_recordings);
+            for r = 1:obj.n_recordings
                 stimdata{r} = importdata([data_loc{r,2,2},data_loc{r,1,2}]);
             end
             
-            data = cell(1,n_recordings);
-            for ii = 1:n_recordings
-                obj.msgPrinter(sprintf('Processing recording block #%d/%d \n',ii,n_recordings));
-                data{ii} = obj.widefieldDFF_abridged(data_loc{r,2,1},data_loc{r,1,1});
+            % Get the recording data
+            data = cell(1,obj.n_recordings);
+            for r = 1:obj.n_recordings
+                obj.msgPrinter(sprintf('Processing recording block #%d/%d \n',r,obj.n_recordings));
+                data{r} = obj.widefieldDFF_abridged(data_loc{r,2,1},data_loc{r,1,1});
             end
             
+            % Get and process the reference image
             ref_img = imread([data_loc{1,2,3} data_loc{1,1,3}]);
             try
                 ref_img_mat = rgb2gray(ref_img);
             catch
                 ref_img_mat = ref_img;
             end
-            min_sz = min(size(ref_img_mat));
-            ref_img_mat = ref_img_mat(1:min_sz,1:min_sz);
+            min_sz = min(size(ref_img_mat)); % Resizing the reference image to match recordings
+            ref_img_mat = ref_img_mat(1:min_sz,1:min_sz); % Turning it into a square, just in case
             
-            scaling_factor = size(data{1},1)/size(ref_img_mat,1);
-            ref_img_sc = imresize(ref_img_mat,scaling_factor);
+            ref_img_sc = imresize(ref_img_mat,size(data{1}));
             
-            
+            % Store all the values into the corresponding property
             obj.stimdata = stimdata;
             obj.data = data;
             obj.ref_img = ref_img_sc;
         end
         
         function [aziResp, altResp] = separateResponseData(obj,raw_data,raw_stimdata)
-            n_recordings = length(raw_data);
-            for r = 1:n_recordings
-                obj.msgPrinter(sprintf('Separating recording block #%d/%d \n',r,n_recordings));
+            for r = 1:obj.n_recordings
+                obj.msgPrinter(sprintf('Separating recording block #%d/%d \n',r,obj.n_recordings));
                 
                 data = raw_data{r}; % not the best way of doing this, but it lets us keep everything from old code
                 stimdata = raw_stimdata{r};
-                %% Parameters
-                repeats     = stimdata.repeats;
+                
+                % Get stimulus data
+                repeats     = stimdata.repeats; 
                 on_frames   = stimdata.on_time*obj.fs;
                 off_frames  = stimdata.off_time*obj.fs;
                 
                 sweep_start = round(stimdata.mov_on*obj.fs);
                 blank_start = round(stimdata.blank_on*obj.fs);
-                %% Preallocating response matrices
+                % Preallocate the matrices
                 azi_on_fResp  = zeros(size(data,1),size(data,2),on_frames,repeats,'single');
                 azi_on_bResp  = zeros(size(data,1),size(data,2),on_frames,repeats,'single');
                 
@@ -132,7 +133,7 @@ classdef SignMapper < handle
                 alt_off_uResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
                 alt_off_dResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
                 
-                %% Extracting Responses
+                % extract responses based on timestamps
                 obj.msgPrinter('     (1/3) Extracting responses\n')
                 for rep = 1:repeats
                     azi_off_fResp(:,:,:,rep)  = data(:,:,blank_start(rep,1)+1:blank_start(rep,1) + off_frames);
@@ -147,9 +148,8 @@ classdef SignMapper < handle
                     alt_off_dResp(:,:,:,rep)  = data(:,:,blank_start(rep,4)+1:blank_start(rep,4)+ off_frames);
                     alt_on_dResp(:,:,:,rep) = data(:,:,sweep_start(rep,4)+1:sweep_start(rep,4)+ on_frames);
                 end
-                %% Calculating off responses for baseline subtraction
-                obj.msgPrinter('     (2/3) Baseline subtracting\n')
-                
+               
+                obj.msgPrinter('     (2/3) Baseline subtracting\n')     
                 % meaning off responses across frames per pixel, preserving reps
                 m_azi_off_fResp = squeeze(mean(azi_off_fResp,3));
                 m_azi_off_bResp = squeeze(mean(azi_off_bResp,3));
@@ -169,45 +169,48 @@ classdef SignMapper < handle
                     altResp(:,:,:,rep,2) = alt_on_dResp(:,:,:,rep) - m_alt_off_dResp(:,:,rep);
                 end
                 
-                %% Meaning responses in both directions
+                % Meaning responses in both directions
                 obj.msgPrinter('     (3/3) Meaning responses\n')
                 % mean across reps in each direction
                 aziResp_all(:,:,:,:,r) =  squeeze(mean(aziResp,4)); %meaning within the recording
                 altResp_all(:,:,:,:,r) =   squeeze(mean(altResp,4));
             end
             
-            aziResp = mean(aziResp_all,5); %overwriting aziResp, for the final one
+            aziResp = mean(aziResp_all,5); % overwriting aziResp, for the final one
             altResp = mean(altResp_all,5);
-            img_dims = size(altResp,1);
+            img_dims = size(altResp);
             
-            aziResp =  reshape(aziResp,img_dims,img_dims,[],2); % now, combining across recordingz
-            altResp =  reshape(altResp,img_dims,img_dims,[],2);
+            aziResp =  reshape(aziResp,img_dims(1:2),img_dims(1:2),[],2); % now, combining across recordingz
+            altResp =  reshape(altResp,img_dims(1:2),img_dims(1:2),[],2);
         end
         
-        function [azimuthMap, altitudeMap] = getRetinotopicMap(obj,fourier_data,h) % h = the harmonic?
-            
-            phaseMap = zeros(size(fourier_data,1),size(fourier_data,2),size(fourier_data,4));
-            for f = 1:size(fourier_data,4)
+        function k = findRetinotopicMap(obj,fourier_data) % Find the correct harmonic for retinotopic mapping
+            for ii = 1:length(obj.harmonic_pool) % Go through the pool of harmonics
+                [azi,alt] = obj.getRetinotopicMap(fourier_data,obj.harmonic_pool(ii)); % Get the corresponding maps
+                s(ii) = sum([skewness(azi(:)),skewness(alt(:))]); % the real map is very positively skewed
+            end
+            k = obj.harmonic_pool(s == max(s)); % Get the most skewed
+        end
+
+        function [azimuthMap, altitudeMap] = getRetinotopicMap(obj,fourier_data,h) % 
+            phaseMap = zeros(size(fourier_data,1),size(fourier_data,2),size(fourier_data,4)); % Preallocate the phaseMaps
+            for f = 1:size(fourier_data,4) % Minor preprocessing of phase maps (mean subtraction and rotation)
                 phaseMap(:,:,f) = obj.phaseMapChooser(fourier_data(:,:,:,f),h);
             end
-            
-            
-            %% from juanivett et al 2017
-            delay_hor = (exp(1i*phaseMap(:,:,1)) + exp(1i*phaseMap(:,:,2)));
+
+            delay_hor = (exp(1i*phaseMap(:,:,1)) + exp(1i*phaseMap(:,:,2))); % Calculating delay
             delay_vert = (exp(1i*phaseMap(:,:,3)) + exp(1i*phaseMap(:,:,4)));
-            
-            
             
             delay_hor = delay_hor + pi/2*(1-sign(delay_hor));
             delay_vert = delay_vert + pi/2*(1-sign(delay_vert));
             
-            aziPhase = .5*(angle(exp(1i*(phaseMap(:,:,1)-delay_hor))) - angle(exp(1i*(phaseMap(:,:,2)-delay_hor))));
+            aziPhase = .5*(angle(exp(1i*(phaseMap(:,:,1)-delay_hor))) - angle(exp(1i*(phaseMap(:,:,2)-delay_hor)))); % Combine opposite directions
             altPhase = .5*(angle(exp(1i*(phaseMap(:,:,3)-delay_vert))) - angle(exp(1i*(phaseMap(:,:,4)-delay_vert))));
             
-            azimuthMap = -phase_unwrap(aziPhase*180/pi); % convert to radians
+            azimuthMap = -phase_unwrap(aziPhase*180/pi); % Convert to radians, negative to correct sign
             altitudeMap = -phase_unwrap(altPhase*180/pi);
             
-            function phi = phase_unwrap(psi, weight)
+            function phi = phase_unwrap(psi, weight) % From somewhere else
                 if (nargin < 2) % unweighted phase unwrap
                     % get the wrapped differences of the wrapped values
                     dx = [zeros([size(psi,1),1]), wrapToPi(diff(psi, 1, 2)), zeros([size(psi,1),1])];
@@ -266,62 +269,53 @@ classdef SignMapper < handle
                         if ((k >= numel(psi)) || (norm(rk(:)) < eps * normR0)) break; end;
                     end
                 end
-            end
-            
-            function phi = solvePoisson(rho)
-                % solve the poisson equation using dct
-                dctRho = dct2(rho);
-                [N, M] = size(rho);
-                [I, J] = meshgrid([0:M-1], [0:N-1]);
-                dctPhi = dctRho ./ 2 ./ (cos(pi*I/M) + cos(pi*J/N) - 2);
-                dctPhi(1,1) = 0; % handling the inf/nan value
                 
-                % now invert to get the result
-                phi = idct2(dctPhi);
+                function phi = solvePoisson(rho)
+                    % solve the poisson equation using dct
+                    dctRho = dct2(rho);
+                    [N, M] = size(rho);
+                    [I, J] = meshgrid([0:M-1], [0:N-1]);
+                    dctPhi = dctRho ./ 2 ./ (cos(pi*I/M) + cos(pi*J/N) - 2);
+                    dctPhi(1,1) = 0; % handling the inf/nan value
+                    
+                    % now invert to get the result
+                    phi = idct2(dctPhi);
+                    
+                end
                 
-            end
-            
-            % apply the transformation (A^T)(W^T)(W)(A) to 2D matrix
-            function Qp = applyQ(p, WW)
-                % apply (A)
-                dx = [diff(p, 1, 2), zeros([size(p,1),1])];
-                dy = [diff(p, 1, 1); zeros([1,size(p,2)])];
-                
-                % apply (W^T)(W)
-                WWdx = WW .* dx;
-                WWdy = WW .* dy;
-                
-                % apply (A^T)
-                WWdx2 = [zeros([size(p,1),1]), WWdx];
-                WWdy2 = [zeros([1,size(p,2)]); WWdy];
-                Qp = diff(WWdx2,1,2) + diff(WWdy2,1,1);
+                function Qp = applyQ(p, WW)
+                    % apply (A)
+                    dx = [diff(p, 1, 2), zeros([size(p,1),1])];
+                    dy = [diff(p, 1, 1); zeros([1,size(p,2)])];
+                    
+                    % apply (W^T)(W)
+                    WWdx = WW .* dx;
+                    WWdy = WW .* dy;
+                    
+                    % apply (A^T)
+                    WWdx2 = [zeros([size(p,1),1]), WWdx];
+                    WWdy2 = [zeros([1,size(p,2)]); WWdy];
+                    Qp = diff(WWdx2,1,2) + diff(WWdy2,1,1);
+                end           
             end
         end
-        
-        function k = findRetinotopicMap(obj,fourier_data)
-            for ii = 1:length(obj.harmonic_pool)
-                [azi,alt] = obj.getRetinotopicMap(fourier_data,obj.harmonic_pool(ii));
-                s(ii) = sum([skewness(azi(:)),skewness(alt(:))]);
-            end
-            k = obj.harmonic_pool(s == max(s));
-        end
-        
-        function k = manualFindRetinotopicMap(obj,fourier_data)
+
+        function k = manualFindRetinotopicMap(obj,fourier_data) % Manual locator of retinotopic maps
             figure;
             set(gcf,'Position',[500 200 1000 500])
             for ii = 1:length(obj.harmonic_pool)
-                [azi,alt] = obj.getRetinotopicMap(fourier_data,obj.harmonic_pool(ii));
+                [azi,alt] = obj.getRetinotopicMap(fourier_data,obj.harmonic_pool(ii)); % Get maps for multiple harmonics
                 subplot(2,2,ii)
-                imagesc([azi alt]); colormap hsv;
+                imagesc([azi alt]); colormap hsv; % show them
                 box off, axis off
                 title(sprintf('Map #%d',ii))
             end
             
-            idx = input('Choose your map #: ');
+            idx = input('Choose your map #: '); % Manually choose harmonic
             k = obj.harmonic_pool(idx);
         end
         
-        function displayMaps(obj,azi,alt)
+        function displayMaps(obj,azi,alt) % Just for visualzation of maps
             figure('units','normalized','outerposition',[0.2 0.2 0.6 0.5])
             subplot(1,2,1)
             imagesc(azi)
@@ -335,27 +329,35 @@ classdef SignMapper < handle
             axis square
             axis off
         end
-        %{
-            A_FT
-            B_getPhaseMap(make it) % this is gonna be weird, lots of changing, this is where you choose the right K
-            C_calculateSignMAps
-            D_saveMaps
-        %}
         
         % Don't open this unless you want to have a bad time, adapted from
         % Juavinett, A. L., Nauhaus, I., Garrett, M. E., Zhuang, J., & Callaway, E. M. (2017).
         % Automated identification of mouse visual areas with intrinsic signal imaging.
         % Nature protocols, 12(1), 32.
+
+        function saveSignMaps(obj,maps) % Handling the saving of the maps
+            if nargin < 2
+                maps = obj.maps;
+            end
+            
+            obj.msgPrinter('Saving main sign mapping materials\n')
+            VFS_raw = maps.VFS_raw;
+            VFS_processed = maps.VFS_processed;
+            VFS_boundaries = maps.VFS_boundaries;
+            
+            save('VFS_maps.mat','VFS_raw','VFS_processed','VFS_boundaries');
+            
+            save('additional_maps.mat','maps');
+        end
         
         function maps = Juavinett2017_signMapping(obj,aziPhase,altPhase)
             skip_flag = 0;
             obj.msgPrinter('Processing sign map\n')
             while true
-                aziPhase = imgaussfilt(aziPhase,2);
+                aziPhase = imgaussfilt(aziPhase,2); % filter maps
                 altPhase = imgaussfilt(altPhase,2);
-                
-                
-                aziPhase = aziPhase*obj.horz_factor;
+
+                aziPhase = aziPhase*obj.horz_factor; % scale for screen
                 altPhase = altPhase*obj.vert_factor;
                 
                 % disp(['Current Low-pass filter value: ' num2str(LP) ' sigma'])
@@ -785,32 +787,16 @@ classdef SignMapper < handle
             obj.maps = maps;
             close all % clean up
         end
-        
-        function saveSignMaps(obj,maps)
-            if nargin < 2
-                maps = obj.maps;
-            end
-            
-            obj.msgPrinter('Saving main sign mapping materials\n')
-            VFS_raw = maps.VFS_raw;
-            VFS_processed = maps.VFS_processed;
-            VFS_boundaries = maps.VFS_boundaries;
-            
-            save('VFS_maps.mat','VFS_raw','VFS_processed','VFS_boundaries');
-            
-            save('additional_maps.mat','maps');
-        end
-        
+  
     end
     
     
-    methods
+    methods (Access = private)
         function msgPrinter(obj,msg)
             fprintf(msg)
         end
         
         function dff = widefieldDFF_abridged(obj,pn,fn) % Bundled version for sign mapping
-            
             %% Extracting basic image info (resolution, frames)
             obj.msgPrinter('     (1/4) Getting image info\n')
             info = imfinfo([pn fn]);
