@@ -193,8 +193,8 @@ classdef SignMapper < handle
             end
             
             s_lowbound =  max(s) - (0.5* max(s));
-            idx = min(find(s > s_lowbound)); % Lowest harmonic that's within 50% of the "max", to account for similar maps
-            k = obj.harmonic_pool(idx); % Get the most skewed
+            idx = min(find(s > s_rng(1) & s < s_rng(2))); % I
+            k = obj.harmonic_pool(s == max(s)); % Get the most skewed
         end
 
         function [azimuthMap, altitudeMap] = getRetinotopicMap(obj,fourier_data,h) % 

@@ -5,7 +5,7 @@
 
 % Adding necessary paths to access the code for sign mapping
 curr_script_dir = mfilename('fullpath');
-parent_script_dir = curr_script_dir(1:end-17);
+parent_script_dir = curr_script_dir(1:end-length(mfilename)); % -18 to get rid of the filename
 addpath(fullfile(parent_script_dir,'Juavinett et al 2017 Code'));
 
 sm = SignMapper(); % Create the sign mapping object
