@@ -186,13 +186,21 @@ classdef SignMapper < handle
             altResp =  reshape(altResp,img_dims(1),img_dims(2),[],2);
         end
         
-        function k = findRetinotopicMap(obj,fourier_data) % Find the correct harmonic for retinotopic mapping         
-            for ii = 1:length(obj.harmonic_pool) % Go through the pool of harmonics
-                [azi,alt] = obj.getRetinotopicMap(fourier_data,obj.harmonic_pool(ii)); % Get the corresponding maps
-                s(ii) = sum([skewness(azi(:)),skewness(alt(:))]); % the real map is very positively skewed
+        function k = findRetinotopicMap(obj,fourier_data) % Find the correct harmonic for retinotopic mapping
+            idx=1;
+            while true
+                if idx == length(obj.harmonic_pool) % If you reach the end, something might be wrong, assign to first one
+                    idx=1; % assign to the first one
+                    break
+                end
+                [azi,alt] = obj.getRetinotopicMap(fourier_data,obj.harmonic_pool(idx)); % Get the corresponding maps
+                s = sum([skewness(azi(:)),skewness(alt(:))]); % the real map is very positively skewed
+                if abs(s) > 0.01 % If skewness value is really low, it probably means that it's not a retinotopic map (normal dist)
+                    break
+                end
+                idx=idx+1; % move on to the next harmonic
             end
-            idx = min(find(s > 0)); % Lowest positively skewed harmonic
-            k = obj.harmonic_pool(idx); % Get the most skewed
+            k = obj.harmonic_pool(idx); % Get the lowest harmonic which isn't normally distributed
         end
 
         function [azimuthMap, altitudeMap] = getRetinotopicMap(obj,fourier_data,h) % 
