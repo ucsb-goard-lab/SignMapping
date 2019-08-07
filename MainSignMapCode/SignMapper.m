@@ -48,6 +48,7 @@ classdef SignMapper < handle
             mkdir('AdditionalSignMapMaterials'); % Additional save directory for supplemental stuff
             maps = obj.Juavinett2017_signMapping(azi,alt); % Run the sign map creator, from the phase-maps
             obj.saveSignMaps(maps); % Save everything
+            obj.exportSignMaps(maps); % Export the overlay image
         end
         
         function data_loc = getUserInput(obj) % Get the user input to find the recordings and such
@@ -354,6 +355,34 @@ classdef SignMapper < handle
             save('VFS_maps.mat','VFS_raw','VFS_processed','VFS_boundaries');
             
             save('additional_maps.mat','maps');
+        end
+        
+        function exportSignMaps(obj,maps)
+            if nargin < 2
+                maps = obj.maps;
+            end
+            
+            figure('units','normalized','outerposition',[0.22 0 0.6 1]) % standard widescreen 1920x1080p
+            
+            refimg = maps.ReferenceImage;
+            bound = maps.VFS_boundaries;
+            refimg(bound) = max(refimg(:))*1.1;
+            imagesc(refimg)
+            axis off
+            axis square
+            
+            axes('Position',[0.155 0.775 0.15 0.15])
+            imagesc(maps.VFS_raw)
+            axis square
+            axis off
+    
+            ax = findobj(gcf,'Type','axes');
+            ax(1).Colormap = jet;
+            ax(2).Colormap = gray;
+            
+            
+            saveas(gcf,'overlay_map.jpg') 
+            close
         end
         
         % Don't open this unless you want to have a bad time, adapted from
@@ -684,105 +713,13 @@ classdef SignMapper < handle
                 end
             end
             
-            AddSaveDir = strcat(obj.SaveDir,'\AdditionalSignMapMaterials');
-            obj.msgPrinter('Saving supplemental sign mapping materials\n');
-            %% SAVE AREA BORDER GENERATION FIGURE
-            bordersFig = strcat('NoFilter_Area Border Generation.fig');
-            old = cd(AddSaveDir);
-            saveas(gcf,bordersFig,'fig')
-            cd(old);
-            %   bordersFig = strcat(AddSaveDir,ExptID,'_','LP',num2str(LP(iLP)),'_Area Border Generation.tif');
-            %  saveas(gcf,bordersFig,'tif')
-            
-            %% Plot blood vessel overlays
-            
-            figure('Visible','off');
-            set(gcf,'Position',[100, 100, 1500, 500]);
-            
-            % blood vessel picture
-            subplot(1,3,1);
-            anatomypic = rot90(obj.ref_img)+1; %% reference image
-            imagesc(xdom,ydom,anatomypic)
-            colormap gray
-            hold on
-            title(strcat('Anatomy'),'FontSize',12,'Interpreter','none');
-            set(gca,'FontName','arial');
-            set(gcf,'Color','w')
-            xlabel('mm'); ylabel('mm')
-            axis equal; axis tight
-            hold on;
-            contour(xdom,ydom,im,[.5 .5],'k','LineWidth',2);
-            
-            ratio=.2;
-            aw = 1-ratio;  %anatomy weight of image (scalar)
-            fw = ratio;  %anatomy weight of image (scalar)
-            
-            grayid = gray(numel(anatomypic));
-            hsvid = hsv;
-            %normalize overlay maps
-            kmap_hor_overlay = kmap_hor_orig;
-            kmap_hor_overlay = kmap_hor_overlay-min(kmap_hor_overlay(:));
-            kmap_hor_overlay = kmap_hor_overlay/max(kmap_hor_overlay(:));
-            kmap_hor_overlay = round(kmap_hor_overlay*49+1);
-            
-            kmap_vert_overlay = kmap_vert_orig;
-            kmap_vert_overlay = kmap_vert_overlay-min(kmap_vert_overlay(:));
-            kmap_vert_overlay = kmap_vert_overlay/max(kmap_vert_overlay(:));
-            kmap_vert_overlay = round(kmap_vert_overlay*49+1);
-            
-            dim = size(kmap_hor_overlay);
-            
-            for i = 1:dim(1)
-                for j = 1:dim(2)
-                    overlay(i,j,:) = fw*hsvid(kmap_hor_overlay(i,j),:) + aw*grayid(anatomypic(i,j),:);
-                end
-            end
-            
-            overlay = overlay/max(overlay(:));
-            
-            for i = 1:dim(1)
-                for j = 1:dim(2)
-                    vertoverlay(i,j,:) = fw*hsvid(kmap_vert_overlay(i,j),:) + aw*grayid(anatomypic(i,j),:);
-                end
-            end
-            
-            vertoverlay = vertoverlay/max(vertoverlay(:));
-            
-            subplot(1,3,2)
-            imagesc(xdom,ydom,overlay,[-50 50])
-            title(strcat('Horizontal Retinotopy Overlay'),'FontSize',12,'Interpreter','none');
-            set(gca,'FontName','arial');
-            set(gcf,'Color','w')
-            xlabel('mm'); ylabel('mm')
-            axis equal; axis tight
-            hold on;
-            contour(xdom,ydom,im,[.5 .5],'k','LineWidth',2)
-            
-            subplot(1,3,3)
-            imagesc(xdom,ydom,vertoverlay,[-50 50])
-            title(strcat('Vertical Retinotopy Overlay'),'FontSize',12,'Interpreter','none');
-            set(gca,'FontName','arial');
-            set(gcf,'Color','w')
-            xlabel('mm'); ylabel('mm')
-            axis equal; axis tight
-            hold on;
-            contour(xdom,ydom,im,[.5 .5],'k','LineWidth',2)
-            
-            
-            overlaysFig = strcat('NoFilter_Overlays.fig');
-            old = cd(AddSaveDir);
-            saveas(gcf,overlaysFig,'fig');
-            cd(old)
-            %  overlaysFig = strcat(AddSaveDir,ExptID,'_','LP',num2str(LP(iLP)),'_Overlays.tif');
-            % saveas(gcf,overlaysFig,'tif');
-            
             %% minor processing of patchsign to change to -1 to 0 to 1
+            anatomypic = rot90(obj.ref_img)+1; %% reference image
             lower_val = unique(patchSign);
             lower_val = lower_val(2);
             patchSign_sub = patchSign;
             patchSign_sub(patchSign_sub == lower_val) = -lower_val;
             patchSign = -sign(patchSign_sub);
-            
             
             %% storing data for giving out
             
@@ -797,7 +734,7 @@ classdef SignMapper < handle
             obj.maps = maps;
             close all % clean up
         end
-  
+        
     end
     
     methods (Access = private)

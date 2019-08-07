@@ -6,7 +6,7 @@
 % Adding necessary paths to access the code for sign mapping
 curr_script_dir = mfilename('fullpath');
 parent_script_dir = curr_script_dir(1:end-length(mfilename)); % -18 to get rid of the filename
-addpath(fullfile(parent_script_dir,'Juavinett et al 2017 Code'));
+addpath(fullfile(parent_script_dir,'Juavinett et al 2017 Code')); % Just make sure you add the Juavinett 2017 code folder
 
 sm = SignMapper(); % Create the sign mapping object
 
@@ -46,4 +46,4 @@ mkdir('AdditionalSignMapMaterials'); % Additional save directory for supplementa
 maps = sm.Juavinett2017_signMapping(azi,alt); % Run the sign map creator, from the phase-maps
 
 sm.saveSignMaps(maps); % Save everything
-
+sm.exportSignMaps(maps); % Export overlay image
