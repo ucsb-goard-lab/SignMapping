@@ -738,11 +738,11 @@ classdef SignMapper < handle
     end
     
     methods (Access = private)
-        function msgPrinter(obj,msg)
+        function msgPrinter(obj, msg)
             fprintf(msg)
         end
         
-        function dff = widefieldDFF_abridged(obj,pn,fn) % Bundled version for sign mapping
+        function dff = widefieldDFF_abridged(obj, pn, fn) % Bundled version for sign mapping
             %% Extracting basic image info (resolution, frames)
             obj.msgPrinter('     (1/4) Getting image info\n')
             info = imfinfo([pn fn]);
@@ -811,7 +811,7 @@ classdef SignMapper < handle
             end
         end
         
-        function phaseMap = phaseMapChooser(obj,ft_data,k) % k is the harmonic
+        function phaseMap = phaseMapChooser(obj, ft_data, k) % k is the harmonic
             phaseMap = angle(ft_data(:,:,k));
             phaseMap = rot90(phaseMap);
             phaseMap = phaseMap - mean(phaseMap(:));
