@@ -1,15 +1,15 @@
 classdef SignMapper < handle
     
     properties (Constant = true)
-        fs            = 10;        % Sampling rate
         harmonic_pool = [2 3 4 5]; % Pool of ft harmonics to check, probably don't need more...
         horz_factor   =  145/360;  % These are simply for conversion into degrees
         vert_factor   = 124/360;
-        pixpermm      = 40;        % Info regarding the screen
+        pixpermm      = 4;        % Info regarding the screen
         SaveDir       = pwd;       % Parent save directory
     end
     
     properties
+	    fs = 10; % imaging frame rate
         stimdata cell  % Stimulus data file for timestamps
         data     cell  % DFF data
         
@@ -117,9 +117,9 @@ classdef SignMapper < handle
                 stimdata = raw_stimdata{r};
                 
                 % Get stimulus data
-                repeats     = stimdata.repeats; 
+                repeats     = stimdata.n_repeats; 
                 on_frames   = stimdata.on_time*obj.fs;
-                off_frames  = stimdata.off_time*obj.fs;
+                off_frames  = stimdata.post_time*obj.fs;
                 
                 sweep_start = round(stimdata.mov_on*obj.fs);
                 blank_start = round(stimdata.blank_on*obj.fs);
@@ -135,7 +135,6 @@ classdef SignMapper < handle
                 
                 alt_off_uResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
                 alt_off_dResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
-                
                 % extract responses based on timestamps
                 obj.msgPrinter('     (1/3) Extracting responses\n')
                 for rep = 1:repeats
@@ -160,6 +159,13 @@ classdef SignMapper < handle
                 m_alt_off_uResp = squeeze(mean(alt_off_uResp,3));
                 m_alt_off_dResp = squeeze(mean(alt_off_dResp,3));
                 
+                % nancheck
+                m_azi_off_fResp(isnan(m_azi_off_fResp)) = 0;
+                m_azi_off_bResp(isnan(m_azi_off_bResp)) = 0;
+                m_alt_off_uResp(isnan(m_alt_off_uResp)) = 0;
+                m_alt_off_dResp(isnan(m_alt_off_dResp)) = 0;
+                
+                
                 % Preallocating
                 aziResp = zeros(size(data,1),size(data,2),on_frames,repeats,2,'single'); % 2 for 2 directions
                 altResp = zeros(size(data,1),size(data,2),on_frames,repeats,2,'single');
@@ -172,8 +178,8 @@ classdef SignMapper < handle
                     altResp(:,:,:,rep,2) = alt_on_dResp(:,:,:,rep) - m_alt_off_dResp(:,:,rep);
                 end
                 
-                % Meaning responses in both directions
-                obj.msgPrinter('     (3/3) Meaning responses\n')
+               % Meaning responses in both directions
+                 obj.msgPrinter('     (3/3) Meaning responses\n')
                 % mean across reps in each direction
                 aziResp_all(:,:,:,:,r) =  squeeze(mean(aziResp,4)); %meaning within the recording
                 altResp_all(:,:,:,:,r) =   squeeze(mean(altResp,4));
@@ -755,7 +761,7 @@ classdef SignMapper < handle
             %preallocation
             dff = zeros(y_pixels, x_pixels, num_images,'single');
             imageRaw = zeros(y_pixels,x_pixels,num_images,'single');
-            
+
             %% Reading images into MATLAB
             obj.msgPrinter('     (2/4) Reading images\n')
             for f = 1:num_images
@@ -780,7 +786,7 @@ classdef SignMapper < handle
             
             %% Calculating F0 map
             obj.msgPrinter('     (3/4) Calculating F0 map\n')
-            F0 = zeros(x_pixels,y_pixels,'single');
+            F0 = zeros(y_pixels, x_pixels,'single');
             for p = 1:x_pixels
                 for j = 1:y_pixels
                     F0(j,p) = (median(imageRaw(j,p,:),3));
@@ -813,7 +819,7 @@ classdef SignMapper < handle
         
         function phaseMap = phaseMapChooser(obj, ft_data, k) % k is the harmonic
             phaseMap = angle(ft_data(:,:,k));
-            phaseMap = rot90(phaseMap);
+%             phaseMap = rot90(phaseMap);
             phaseMap = phaseMap - mean(phaseMap(:));
         end
     end
