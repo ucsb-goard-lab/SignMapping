@@ -1,17 +1,18 @@
-classdef SignMapper < handle
+classdef SignMapper_disk < handle
     
     properties (Constant = true)
         harmonic_pool = [2 3 4 5]; % Pool of ft harmonics to check, probably don't need more...
         horz_factor   =  145/360;  % These are simply for conversion into degrees
         vert_factor   = 124/360;
-        pixpermm      = 4;        % Info regarding the screen
+        pixpermm      = 20;        % Info regarding the loscreen
         SaveDir       = pwd;       % Parent save directory
     end
     
     properties
         fs = 10; % imaging frame rate
         stimdata cell  % Stimulus data file for timestamps
-        data     cell  % DFF data
+        data_fn
+        h5_hierarchy
         
         ref_img  double % Surface reference image
         maps     struct % Finished maps
@@ -22,8 +23,9 @@ classdef SignMapper < handle
     end
     
     methods
-        function obj = SignMapper()
+        function obj = SignMapper_disk()
             % Nothing to initialize
+            obj.data_fn = sprintf('_temporary_%d.h5', randi(9999999999));
         end
         
         function autoRunMapping(obj) % This just puts everything together for autorun
@@ -33,7 +35,7 @@ classdef SignMapper < handle
             
             [data, stimdata] = obj.getData(data_loc); % Get and process data into a usable state
             
-            [aziResp,altResp] = obj.separateResponseData(data,stimdata); % Separate each recording into the cardinal directions, based on timestamps
+            [aziResp,altResp] = obj.separateResponseData(stimdata); % Separate each recording into the cardinal directions, based on timestamps
             
             % Run fourier transforms
             fourier_data(:,:,:,1) = fft(aziResp(:,:,:,1),[],3);
@@ -70,10 +72,11 @@ classdef SignMapper < handle
             % Get the reference image
             obj.msgPrinter(sprintf('Lastly, choose your reference image for overlay\n'))
             [data_loc{1,1,3}, data_loc{1,2,3}] = uigetfile({'*.jpg;*.png;*.gif;*.tif','All Image Files';...
-                '*.*','All Files' });
+                '*.*','All Files' });       
+            
         end
         
-        function [data, stimdata] = getData(obj,data_loc)
+        function [data, stimdata] = getData(obj, data_loc)
             obj.n_recordings = size(data_loc,1);
             
             % Get the stimulus data
@@ -86,7 +89,7 @@ classdef SignMapper < handle
             data = cell(1,obj.n_recordings);
             for r = 1:obj.n_recordings
                 obj.msgPrinter(sprintf('Processing recording block #%d/%d \n',r,obj.n_recordings));
-                data{r} = obj.widefieldDFF_abridged(data_loc{r,2,1},data_loc{r,1,1});
+                obj.widefieldDFF_abridged(data_loc{r,2,1}, data_loc{r,1,1}, r);
             end
             
             % Get and process the reference image
@@ -99,18 +102,22 @@ classdef SignMapper < handle
             min_sz = min(size(ref_img_mat)); % Resizing the reference image to match recordings
             ref_img_mat = ref_img_mat(1:min_sz,1:min_sz); % Turning it into a square, just in case
             
-            scaleFactor = size(data{1},1)./size(ref_img_mat,1);
+            info = imfinfo([data_loc{1, 2, 1} data_loc{1, 1, 1}]);
             
-            ref_img_sc = imresize(ref_img_mat,scaleFactor);
+            y_pixels = info(1).Height;
+            
+            scaleFactor = y_pixels./size(ref_img_mat,1);
+            
+            ref_img_sc = imresize(ref_img_mat, scaleFactor);
             
             % Store all the values into the corresponding property
             obj.stimdata = stimdata;
-            obj.data = data;
+%             obj.data = data;
             obj.ref_img = ref_img_sc;
         end
         
         
-        function on_resp = separateSingleResponse(obj, data, stimdata, direction)
+        function on_resp = separateSingleResponse(obj, stimdata, direction, rec)
             switch direction
                 case 'forward'
                     idx = 1;
@@ -131,13 +138,15 @@ classdef SignMapper < handle
             blank_start = round(stimdata.blank_on * obj.fs);
             
             % preallocate
-            on_resp = zeros(size(data, 1), size(data, 2), on_frames, repeats, 'single');
-            off_resp = zeros(size(data, 1), size(data, 2), off_frames, repeats, 'single');
+            warning('currently hardcoded, fix this later')
+            on_resp = zeros(size(obj.ref_img, 1), 1200, on_frames, repeats, 'single');
+            off_resp = zeros(size(obj.ref_img, 1), 1200, off_frames, repeats, 'single');
             
             % split it out
             for rep = 1:repeats
-                on_resp(:, :, :, rep) = data(:, :, sweep_start(rep, idx) + 1 : sweep_start(rep, idx) + on_frames);
-                off_resp(:, :, :, rep) = data(:, :, blank_start(rep, idx) + 1 : blank_start(rep, idx) + off_frames);
+                disp(rep)
+                on_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, sweep_start(rep, idx) + 1], [size(obj.ref_img, 1), 1200, on_frames]); % read it in immediately,
+                off_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, blank_start(rep, idx) + 1], [size(obj.ref_img, 1), 1200, off_frames]);
             end
             
             % Overwriting variables to keep sizes down
@@ -147,20 +156,20 @@ classdef SignMapper < handle
             end
         end
         
-        function [aziResp, altResp] = separateResponseData(obj,raw_data,raw_stimdata)
-            [aziResp_f, aziResp_b, altResp_u, altResp_d] = deal(zeros(size(raw_data{1}, 1), size(raw_data{1}, 2), raw_stimdata{1}.on_time*obj.fs, 'single'));
+        function [aziResp, altResp] = separateResponseData(obj,raw_stimdata)        
+        
+            [aziResp_f, aziResp_b, altResp_u, altResp_d] = deal(zeros(size(obj.ref_img, 1), 1200, raw_stimdata{1}.on_time*obj.fs, 'single'));
             for r = 1:obj.n_recordings
                 obj.msgPrinter(sprintf('Separating recording block #%d/%d \n',r,obj.n_recordings));
                 
-                data = raw_data{r}; % not the best way of doing this, but it lets us keep everything from old code
                 stimdata = raw_stimdata{r};
                 
                 % running_total
-                aziResp_f = aziResp_f + mean(obj.separateSingleResponse(data, stimdata, 'forward'), 4); % might need to do this one by one, again to keep sizes down? ie
-                aziResp_b = aziResp_b + mean(obj.separateSingleResponse(data, stimdata, 'backward'), 4);
+                aziResp_f = aziResp_f + mean(obj.separateSingleResponse(stimdata, 'forward', r), 4); % might need to do this one by one, again to keep sizes down? ie
+                aziResp_b = aziResp_b + mean(obj.separateSingleResponse(stimdata, 'backward', r), 4);
                 
-                altResp_u = altResp_u + mean(obj.separateSingleResponse(data, stimdata, 'up'), 4);
-                altResp_d = altResp_d + mean(obj.separateSingleResponse(data, stimdata, 'down'), 4);
+                altResp_u = altResp_u + mean(obj.separateSingleResponse(stimdata, 'up', r), 4);
+                altResp_d = altResp_d + mean(obj.separateSingleResponse(stimdata, 'down', r), 4);
             end
             
             aziResp = cat(4, aziResp_f./obj.n_recordings, aziResp_b./obj.n_recordings);  %mean
@@ -169,9 +178,10 @@ classdef SignMapper < handle
         
         function [aziResp, altResp] = separateResponseData_OLD(obj,raw_data,raw_stimdata)
             for r = 1:obj.n_recordings
+                ds = sprintf('/dff/%d', r);
                 obj.msgPrinter(sprintf('Separating recording block #%d/%d \n',r,obj.n_recordings));
-                
-                data = raw_data{r}; % not the best way of doing this, but it lets us keep everything from old code
+                keyboard
+%                 data = raw_data{r}; % not the best way of doing this, but it lets us keep everything from old code
                 stimdata = raw_stimdata{r};
                 % Get stimulus data
                 repeats     = stimdata.n_repeats;
@@ -181,21 +191,28 @@ classdef SignMapper < handle
                 sweep_start = round(stimdata.mov_on*obj.fs);
                 blank_start = round(stimdata.blank_on*obj.fs);
                 % Preallocate the matrices
-                azi_on_fResp  = zeros(size(data,1),size(data,2),on_frames,repeats,'single');
-                azi_on_bResp  = zeros(size(data,1),size(data,2),on_frames,repeats,'single');
-                
-                azi_off_fResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
-                azi_off_bResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
-                
-                alt_on_uResp  = zeros(size(data,1),size(data,2),on_frames,repeats,'single');
-                alt_on_dResp  = zeros(size(data,1),size(data,2),on_frames,repeats,'single');
-                
-                alt_off_uResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
-                alt_off_dResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
+%                 azi_on_fResp  = zeros(size(data,1),size(data,2),on_frames,repeats,'single');
+%                 azi_on_bResp  = zeros(size(data,1),size(data,2),on_frames,repeats,'single');
+%                 
+%                 azi_off_fResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
+%                 azi_off_bResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
+%                 
+%                 alt_on_uResp  = zeros(size(data,1),size(data,2),on_frames,repeats,'single');
+%                 alt_on_dResp  = zeros(size(data,1),size(data,2),on_frames,repeats,'single');
+%                 
+%                 alt_off_uResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
+%                 alt_off_dResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
+
+azi_off_fResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
+azi_off_bResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
+alt_off_uResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
+alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
+
                 % extract responses based on timestamps
                 obj.msgPrinter('     (1/3) Extracting responses\n')
                 for rep = 1:repeats
-                    azi_off_fResp(:,:,:,rep)  = data(:,:,blank_start(rep,1)+1:blank_start(rep,1) + off_frames);
+%                     temp = h5read(obj.data_fn, ds, blank_start(rep, 1) + 1
+                    azi_off_fResp(:,:,:,rep)  = data(:,:,blank_start(rep,1)+1:blank_start(rep,1) + off_frames); % here only read the frames that you need?
                     azi_on_fResp(:,:,:,rep) = data(:,:,sweep_start(rep,1)+1:sweep_start(rep,1)+ on_frames);
                     
                     azi_off_bResp(:,:,:,rep)  = data(:,:,blank_start(rep,2)+1:blank_start(rep,2)+ off_frames);
@@ -210,7 +227,7 @@ classdef SignMapper < handle
                 
                 obj.msgPrinter('     (2/3) Baseline subtracting\n')
                 % meaning off responses across frames per pixel, preserving reps
-                m_azi_off_fResp = squeeze(mean(azi_off_fResp,3));
+                m_azi_off_fResp = squeeze(mean(azi_off_fResp,3)); % this means we can just add
                 m_azi_off_bResp = squeeze(mean(azi_off_bResp,3));
                 
                 m_alt_off_uResp = squeeze(mean(alt_off_uResp,3));
@@ -456,9 +473,8 @@ classdef SignMapper < handle
             skip_flag = 0;
             obj.msgPrinter('Processing sign map\n')
             while true
-                aziPhase = imgaussfilt(aziPhase,8); % filter maps
-                altPhase = imgaussfilt(altPhase,8);
-                
+                aziPhase = imgaussfilt(aziPhase, 4); % filter maps
+                altPhase = imgaussfilt(altPhase, 4);
                 aziPhase = aziPhase*obj.horz_factor; % scale for screen
                 altPhase = altPhase*obj.vert_factor;
                 
@@ -805,7 +821,9 @@ classdef SignMapper < handle
             fprintf(msg)
         end
         
-        function dff = widefieldDFF_abridged(obj, pn, fn) % Bundled version for sign mapping
+        function dff = widefieldDFF_abridged(obj, pn, fn, r) % Bundled version for sign mapping
+            % important to have 'r', as the current recording for
+            % filestructure stuff...
             %% Extracting basic image info (resolution, frames)
             obj.msgPrinter('     (1/4) Getting image info\n')
             info = imfinfo([pn fn]);
@@ -814,6 +832,8 @@ classdef SignMapper < handle
             x_pixels = info(1).Width;
             y_pixels = info(1).Height;
             
+            % create the file to save to
+                        
             block_size = 500;
             num_blocks = ceil(length(info)/block_size);
             
@@ -847,16 +867,16 @@ classdef SignMapper < handle
             
             %% Photobleaching check, this is gonna be displayed, and the figure saved.
             
-            plot(frame_F,'linewidth',2)
+%             plot(frame_F,'linewidth',2)
             F_fit = polyfit([1:length(frame_F)],frame_F',1);
             PhotoBl = round((F_fit(1)*length(frame_F))/F_fit(2)*100);
-            ylim([0 max(frame_F)*1.25])
-            title(['Fluorescence timecourse, Photobleaching = ' num2str(PhotoBl) '%'])
-            xlabel('Frame #')
-            ylabel('Raw fluorescence')
-            set(gcf,'color',[1 1 1])
-            saveas(gcf,'Fluorescence_timecourse')
-            close
+%             ylim([0 max(frame_F)*1.25])
+%             title(['Fluorescence timecourse, Photobleaching = ' num2str(PhotoBl) '%'])
+%             xlabel('Frame #')
+%             ylabel('Raw fluorescence')
+%             set(gcf,'color',[1 1 1])
+%             saveas(gcf,'Fluorescence_timecourse')
+%             close
             
             disp(['          Photobleaching: ' num2str(PhotoBl) '%'])
             
@@ -872,14 +892,15 @@ classdef SignMapper < handle
             
             %% Calculating dff
             obj.msgPrinter('     (4/4) Calculating DFF\n')
-            
+            h5create(obj.data_fn, sprintf('/dff/%d', r), [y_pixels, x_pixels, num_images], 'ChunkSize', [y_pixels, x_pixels, 1]);  
             for img = 1:num_images
                 if mod(img, 100) == 0
                     fprintf('Img %d/%d\n', img, num_images)
                     drawnow();
                 end
                 curr_image = imread([pn, fn], 'Index', img, 'Info', info);
-                dff(:, :, img) = ((single(curr_image) - F0)./F0) * 100;
+                dff = ((single(curr_image) - F0)./F0) * 100;
+                h5write(obj.data_fn, sprintf('/dff/%d', r), dff, [1, 1, img], [y_pixels, x_pixels, 1]) 
             end
             %{
             % now we gotta re-read it all in...

@@ -8,13 +8,13 @@ curr_script_dir = mfilename('fullpath');
 parent_script_dir = curr_script_dir(1:end-length(mfilename)); % -18 to get rid of the filename
 addpath(fullfile(parent_script_dir,'Juavinett et al 2017 Code')); % Just make sure you add the Juavinett 2017 code folder
 
-sm = SignMapper(); % Create the sign mapping object
+sm = SignMapper_disk(); % Create the sign mapping object
 
 data_loc = sm.getUserInput(); % Get the input for everything
 
 [data, stimdata] = sm.getData(data_loc); % Get and process data into a usable state
 
-[aziResp,altResp] = sm.separateResponseData(data,stimdata); % Separate each recording into the cardinal directions, based on timestamps
+[aziResp,altResp] = sm.separateResponseData(stimdata); % Separate each recording into the cardinal directions, based on timestamps
 
 % Run fourier transforms
 fourier_data(:,:,:,1) = fft(aziResp(:,:,:,1),[],3);
