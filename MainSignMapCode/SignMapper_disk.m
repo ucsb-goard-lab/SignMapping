@@ -54,25 +54,32 @@ classdef SignMapper_disk < handle
         end
         
         function data_loc = getUserInput(obj) % Get the user input to find the recordings and such
+
             n_recordings = inputdlg('How many recording blocks do you have?');
             obj.n_recordings = str2double(n_recordings{1});
             
             data_loc = cell(obj.n_recordings,2,3); % recordings x filename/pathname x data/Stimdata/ref_img
-            
-            for ii = 1:obj.n_recordings % Get the data
-                obj.msgPrinter(sprintf('Choose multi-page.tif file for recording #%d/%d \n',ii,obj.n_recordings))
-                [data_loc{ii,1,1}, data_loc{ii,2,1}] = uigetfile('.tif');
+
+            % Get the data
+            [data_file_names_, data_path_] = uigetfile("*.tif", sprintf('Choose multi-page.tif file for recording (N=%d) \n',obj.n_recordings), 'MultiSelect','on');
+
+            data_file_names_ = sort(data_file_names_);
+            for ii = 1:size(data_file_names_,2)
+                data_loc{ii,1,1} = string(data_file_names_(1,ii));
+                data_loc{ii,2,1} = string(data_path_);
             end
+
+            % Get the stimulus data
+            [stim_file_names_, stim_path_] = uigetfile(data_path_+"*.mat", sprintf('Choose your stimulus data file for recording (N=%d) \n',obj.n_recordings), 'MultiSelect','on');
             
-            for ii = 1:obj.n_recordings % Get the stimulus data
-                obj.msgPrinter(sprintf('Choose your stimulus data file for recording #%d/%d \n',ii,obj.n_recordings))
-                [data_loc{ii,1,2},data_loc{ii,2,2}] = uigetfile('.mat');
+            stim_file_names_ = sort(stim_file_names_);
+            for ii = 1:size(stim_file_names_,2)
+                data_loc{ii,1,2} = stim_file_names_(1,ii);
+                data_loc{ii,2,2} = string(stim_path_);
             end
-            
+
             % Get the reference image
-            obj.msgPrinter(sprintf('Lastly, choose your reference image for overlay\n'))
-            [data_loc{1,1,3}, data_loc{1,2,3}] = uigetfile({'*.jpg;*.png;*.gif;*.tif','All Image Files';...
-                '*.*','All Files' });       
+            [data_loc{1,1,3}, data_loc{1,2,3}] = uigetfile(data_path_+"*.tif", sprintf('Lastly, choose your reference image for overlay\n'));
             
         end
         
@@ -82,7 +89,7 @@ classdef SignMapper_disk < handle
             % Get the stimulus data
             stimdata = cell(1,obj.n_recordings);
             for r = 1:obj.n_recordings
-                stimdata{r} = importdata([data_loc{r,2,2},data_loc{r,1,2}]);
+                stimdata{r} = importdata(join([data_loc{r,2,2},data_loc{r,1,2}],''));
             end
             
             % Get the recording data
@@ -826,7 +833,7 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
             % filestructure stuff...
             %% Extracting basic image info (resolution, frames)
             obj.msgPrinter('     (1/4) Getting image info\n')
-            info = imfinfo([pn fn]);
+            info = imfinfo(join([pn fn],''));
             num_images = numel(info);
             
             x_pixels = info(1).Width;
@@ -856,7 +863,7 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
                 % create
                 img_block = zeros(y_pixels, x_pixels, length(idx_vec), 'single');
                 for idx = 1:size(img_block, 3)
-                    img_block(:, :, idx) = imread([pn, fn], 'Index', idx_vec(idx), 'Info', info);
+                    img_block(:, :, idx) = imread(join([pn, fn],''), 'Index', idx_vec(idx), 'Info', info);
                 end
                 
                 % now we have a block...
@@ -898,7 +905,7 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
                     fprintf('Img %d/%d\n', img, num_images)
                     drawnow();
                 end
-                curr_image = imread([pn, fn], 'Index', img, 'Info', info);
+                curr_image = imread(join([pn, fn],''), 'Index', img, 'Info', info);
                 dff = ((single(curr_image) - F0)./F0) * 100;
                 h5write(obj.data_fn, sprintf('/dff/%d', r), dff, [1, 1, img], [y_pixels, x_pixels, 1]) 
             end
