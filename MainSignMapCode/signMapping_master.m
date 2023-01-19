@@ -24,7 +24,7 @@ fourier_data(:,:,:,4) = fft(altResp(:,:,:,2),[],3);
 
 k = sm.findRetinotopicMap(fourier_data); % Find the correct harmonic for retinotopic maps
 
-[azi,alt] = sm.getRetinotopicMap(fourier_data,k); % Get the retinotopic map of determined harmonic
+[azi,alt] = sm.getRetinotopicMap(fourier_data,3); % Get the retinotopic map of determined harmonic
 sm.displayMaps(azi,alt); % Show maps
 
 % Below allows you to manually redefine maps if the auto-chooser got the wrong harmonic

@@ -25,7 +25,8 @@ classdef SignMapper_disk < handle
     methods
         function obj = SignMapper_disk()
             % Nothing to initialize
-            obj.data_fn = sprintf('_temporary_%d.h5', randi(9999999999));
+             user_temp_file_dir = uigetdir('C:/');
+            obj.data_fn = sprintf('%s_temporary_%d.h5', user_temp_file_dir, randi(9999999999));
         end
         
         function autoRunMapping(obj) % This just puts everything together for autorun
@@ -99,21 +100,23 @@ classdef SignMapper_disk < handle
             catch
                 ref_img_mat = ref_img;
             end
-            min_sz = min(size(ref_img_mat)); % Resizing the reference image to match recordings
-            ref_img_mat = ref_img_mat(1:min_sz,1:min_sz); % Turning it into a square, just in case
             
-            info = imfinfo([data_loc{1, 2, 1} data_loc{1, 1, 1}]);
-            
-            y_pixels = info(1).Height;
-            
-            scaleFactor = y_pixels./size(ref_img_mat,1);
-            
-            ref_img_sc = imresize(ref_img_mat, scaleFactor);
-            
+            %% this is all junk from when we used to screenshot the refimg, this is gone now...
+%             min_sz = min(size(ref_img_mat)); % Resizing the reference image to match recordings
+%             ref_img_mat = ref_img_mat(1:min_sz,1:min_sz); % Turning it into a square, just in case
+%             
+%             info = imfinfo([data_loc{1, 2, 1} data_loc{1, 1, 1}]);
+%             
+%             y_pixels = info(1).Height;
+%             keyboard
+%             scaleFactor = y_pixels./size(ref_img_mat,1);
+%             
+%             ref_img_sc = imresize(ref_img_mat, scaleFactor);
+%             
             % Store all the values into the corresponding property
             obj.stimdata = stimdata;
 %             obj.data = data;
-            obj.ref_img = ref_img_sc;
+            obj.ref_img = ref_img_mat;
         end
         
         
@@ -131,22 +134,22 @@ classdef SignMapper_disk < handle
                     error("You've asked for a direction that doesn't exist. Possible directions: 'forward', 'backward', 'up', 'down'")
             end
             % extract relevant information
-            repeats = stimdata.n_repeats;
+            warning("Line 136, temporary fix by subtracting a repeat")
+            repeats = stimdata.repeats - 1;
             on_frames = stimdata.on_time * obj.fs;
-            off_frames = stimdata.pre_time * obj.fs;
+            off_frames = stimdata.off_time * obj.fs;
             sweep_start = round(stimdata.mov_on * obj.fs);
             blank_start = round(stimdata.blank_on * obj.fs);
             
             % preallocate
-            warning('currently hardcoded, fix this later')
-            on_resp = zeros(size(obj.ref_img, 1), 1200, on_frames, repeats, 'single');
-            off_resp = zeros(size(obj.ref_img, 1), 1200, off_frames, repeats, 'single');
+            on_resp = zeros(size(obj.ref_img, 1), size(obj.ref_img, 2), on_frames, repeats, 'single');
+            off_resp = zeros(size(obj.ref_img, 1), size(obj.ref_img, 2), off_frames, repeats, 'single');
             
             % split it out
             for rep = 1:repeats
                 disp(rep)
-                on_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, sweep_start(rep, idx) + 1], [size(obj.ref_img, 1), 1200, on_frames]); % read it in immediately,
-                off_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, blank_start(rep, idx) + 1], [size(obj.ref_img, 1), 1200, off_frames]);
+                on_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, sweep_start(rep, idx) + 1], [size(obj.ref_img, 1), size(obj.ref_img, 2), on_frames]); % read it in immediately,
+                off_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, blank_start(rep, idx) + 1], [size(obj.ref_img, 1), size(obj.ref_img, 2), off_frames]);
             end
             
             % Overwriting variables to keep sizes down
@@ -158,7 +161,7 @@ classdef SignMapper_disk < handle
         
         function [aziResp, altResp] = separateResponseData(obj,raw_stimdata)        
         
-            [aziResp_f, aziResp_b, altResp_u, altResp_d] = deal(zeros(size(obj.ref_img, 1), 1200, raw_stimdata{1}.on_time*obj.fs, 'single'));
+            [aziResp_f, aziResp_b, altResp_u, altResp_d] = deal(zeros(size(obj.ref_img, 1), size(obj.ref_img, 2), raw_stimdata{1}.on_time*obj.fs, 'single'));
             for r = 1:obj.n_recordings
                 obj.msgPrinter(sprintf('Separating recording block #%d/%d \n',r,obj.n_recordings));
                 
@@ -473,8 +476,8 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
             skip_flag = 0;
             obj.msgPrinter('Processing sign map\n')
             while true
-                aziPhase = imgaussfilt(aziPhase, 4); % filter maps
-                altPhase = imgaussfilt(altPhase, 4);
+                aziPhase = imgaussfilt(aziPhase, 3); % filter maps
+                altPhase = imgaussfilt(altPhase, 3);
                 aziPhase = aziPhase*obj.horz_factor; % scale for screen
                 altPhase = altPhase*obj.vert_factor;
                 
@@ -491,19 +494,22 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
                 kmap_hor_orig = rot90(kmap_hor_orig,-1);
                 kmap_vert_orig = rot90(kmap_vert_orig,-1);
                 
-                kmap_hor = resample(kmap_hor_orig,2,5);
-                kmap_hor = resample(rot90(kmap_hor),2,5);
+%                 kmap_hor = resample(kmap_hor_orig,2,5);
+%                 kmap_hor = resample(rot90(kmap_hor),2,5);
+%                 
+%                 kmap_vert = resample(kmap_vert_orig,2,5);
+%                 kmap_vert = resample(rot90(kmap_vert),2,5);
+
+                % Changed te proper scaling... does this help? 20JUN2022 KS
+%                 kmap_hor = resample(kmap_hor_orig, obj.pixpermm, 39); % for each axis
+%                 kmap_hor = resample(rot90(kmap_hor), obj.pixpermm, 39);
+%                 
+%                 kmap_vert = resample(kmap_vert_orig, obj.pixpermm, 39);
+%                 kmap_vert = resample(rot90(kmap_vert), obj.pixpermm, 39);
+%                 
                 
-                kmap_vert = resample(kmap_vert_orig,2,5);
-                kmap_vert = resample(rot90(kmap_vert),2,5);
-                
-                
-                %  kmap_vert = downsample(kmap_vert_orig,downsample_val);
-                
-                kmap_hor_orig = rot90(kmap_hor_orig);
-                kmap_vert_orig = rot90(kmap_vert_orig);
-                
-                
+                kmap_hor = rot90(kmap_hor_orig);
+                kmap_vert = rot90(kmap_vert_orig);
                 %% Compute visual field sign map
                 mmperpix = 1/obj.pixpermm;
                 
@@ -517,11 +523,11 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
                 VFS = sin(angle(vdiff)); %Visual field sign map
                 id = find(isnan(VFS));
                 VFS(id) = 0;
-                
-                hh = fspecial('gaussian',size(VFS),3);
+                       
+                hh = fspecial('gaussian',size(VFS), 3);
                 hh = hh/sum(hh(:));
                 VFS = ifft2(fft2(VFS).*abs(fft2(hh)));  %Important to smooth before thresholding below
-                
+                keyboard
                 %% Plot retinotopic maps
                 
                 xdom = (0:size(kmap_hor,2)-1)*mmperpix;
@@ -834,11 +840,11 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
             
             % create the file to save to
                         
-            block_size = 500;
+            block_size = 250;
             num_blocks = ceil(length(info)/block_size);
             
             %preallocation
-            dff = zeros(y_pixels, x_pixels, num_images,'single');
+%             dff = zeros(y_pixels, x_pixels, num_images,'single');
             %             imageRaw = zeros(y_pixels,x_pixels,num_images,'single');
             
             %% Reading images into MATLAB
