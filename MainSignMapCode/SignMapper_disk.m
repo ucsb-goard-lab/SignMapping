@@ -25,7 +25,7 @@ classdef SignMapper_disk < handle
     methods
         function obj = SignMapper_disk()
             % Nothing to initialize
-             user_temp_file_dir = uigetdir('C:/');
+             user_temp_file_dir = uigetdir('C:/', 'Choose a path for the temporary hdf file (needs 100+ free GB).');
             obj.data_fn = sprintf('%s_temporary_%d.h5', user_temp_file_dir, randi(9999999999));
         end
         
@@ -55,25 +55,26 @@ classdef SignMapper_disk < handle
         end
         
         function data_loc = getUserInput(obj) % Get the user input to find the recordings and such
-            n_recordings = inputdlg('How many recording blocks do you have?');
-            obj.n_recordings = str2double(n_recordings{1});
+            % n_recordings = inputdlg('How many recording blocks do you have?');
+            % obj.n_recordings = str2double(n_recordings{1});
+            obj.n_recordings = 1;
             
             data_loc = cell(obj.n_recordings,2,3); % recordings x filename/pathname x data/Stimdata/ref_img
             
             for ii = 1:obj.n_recordings % Get the data
-                obj.msgPrinter(sprintf('Choose multi-page.tif file for recording #%d/%d \n',ii,obj.n_recordings))
-                [data_loc{ii,1,1}, data_loc{ii,2,1}] = uigetfile('.tif');
+                % obj.msgPrinter(sprintf( for recording #%d/%d \n',ii,obj.n_recordings))
+                [data_loc{ii,1,1}, data_loc{ii,2,1}] = uigetfile("*.tif", 'Choose multi-page .tif file');
             end
+            use_init_path = data_loc{ii,2,1};
             
             for ii = 1:obj.n_recordings % Get the stimulus data
-                obj.msgPrinter(sprintf('Choose your stimulus data file for recording #%d/%d \n',ii,obj.n_recordings))
-                [data_loc{ii,1,2},data_loc{ii,2,2}] = uigetfile('.mat');
+                %obj.msgPrinter(sprintf(' for recording #%d/%d \n',ii,obj.n_recordings))
+                [data_loc{ii,1,2},data_loc{ii,2,2}] = uigetfile(use_init_path+"*.mat", 'Choose stimulus .mat data file');
             end
             
             % Get the reference image
-            obj.msgPrinter(sprintf('Lastly, choose your reference image for overlay\n'))
-            [data_loc{1,1,3}, data_loc{1,2,3}] = uigetfile({'*.jpg;*.png;*.gif;*.tif','All Image Files';...
-                '*.*','All Files' });       
+            %obj.msgPrinter(sprintf('Lastly, \n'))
+            [data_loc{1,1,3}, data_loc{1,2,3}] = uigetfile(use_init_path+"*.tif", 'Choose your reference image for overlay');       
             
         end
         
@@ -527,7 +528,7 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
                 hh = fspecial('gaussian',size(VFS), 3);
                 hh = hh/sum(hh(:));
                 VFS = ifft2(fft2(VFS).*abs(fft2(hh)));  %Important to smooth before thresholding below
-                keyboard
+                % keyboard
                 %% Plot retinotopic maps
                 
                 xdom = (0:size(kmap_hor,2)-1)*mmperpix;

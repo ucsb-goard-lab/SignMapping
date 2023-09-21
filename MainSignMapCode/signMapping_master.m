@@ -12,7 +12,7 @@ sm = SignMapper_disk(); % Create the sign mapping object
 
 data_loc = sm.getUserInput(); % Get the input for everything
 
-[data, stimdata] = sm.getData(data_loc); % Get and process data into a usable state
+[data, stimdata] = sm.getData(data_loc); % Get and process data into a usable statea
 
 [aziResp,altResp] = sm.separateResponseData(stimdata); % Separate each recording into the cardinal directions, based on timestamps
 

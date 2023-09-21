@@ -11,3 +11,8 @@ codegen/
 *.slxc
 octave-workspace
 .DS_Store
+*.mat
+*.jpg
+*.jpeg
+*.pdf
+*.png
