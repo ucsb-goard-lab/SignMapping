@@ -407,7 +407,11 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
                 title(sprintf('Map #%d',ii))
             end
             
-            idx = input('Choose your map #: '); % Manually choose harmonic
+            idx = input('Choose your map # (choose -1 for NONE): '); % Manually choose harmonic
+            if idx == -1
+                % Recursive call if none of the maps look okay
+                obj.manualFindRetinotopicMap(fourier_data)
+            end
             k = obj.harmonic_pool(idx);
         end
         

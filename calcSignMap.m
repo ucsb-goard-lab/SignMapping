@@ -11,7 +11,7 @@ sm = SignMapper_disk(); % Create the sign mapping object
 
 data_loc = sm.getUserInput(); % Get the input for everything
 
-[data, stimdata] = sm.getData(data_loc); % Get and process data into a usable statea
+[data, stimdata] = sm.getData(data_loc); % Get and process data into a usable state
 
 [aziResp,altResp] = sm.separateResponseData(stimdata); % Separate each recording into the cardinal directions, based on timestamps
 
@@ -21,25 +21,15 @@ fourier_data(:,:,:,2) = fft(aziResp(:,:,:,2),[],3);
 fourier_data(:,:,:,3) = fft(altResp(:,:,:,1),[],3);
 fourier_data(:,:,:,4) = fft(altResp(:,:,:,2),[],3);
 
-k = sm.findRetinotopicMap(fourier_data); % Find the correct harmonic for retinotopic maps
+% k = sm.findRetinotopicMap(fourier_data); % Find the correct harmonic for retinotopic maps
 
-[azi,alt] = sm.getRetinotopicMap(fourier_data,3); % Get the retinotopic map of determined harmonic
-sm.displayMaps(azi,alt); % Show maps
+% [azi,alt] = sm.getRetinotopicMap(fourier_data,3); % Get the retinotopic map of determined harmonic
+% sm.displayMaps(azi,alt); % Show maps
 
 % Below allows you to manually redefine maps if the auto-chooser got the wrong harmonic
-while true
-    goodmap = questdlg('Do your maps look good?','Map quality','Yes','No','Yes');
-    close
-    
-    switch goodmap
-        case 'No'
-            k = sm.manualFindRetinotopicMap(fourier_data);
-            [azi,alt] = sm.getRetinotopicMap(fourier_data,k);
-            sm.displayMaps(azi,alt);
-        case 'Yes'
-            break
-    end
-end
+k = sm.manualFindRetinotopicMap(fourier_data);
+[azi,alt] = sm.getRetinotopicMap(fourier_data, k);
+sm.displayMaps(azi,alt);
 
 mkdir('AdditionalSignMapMaterials'); % Additional save directory for supplemental stuff
 maps = sm.Juavinett2017_signMapping(azi,alt); % Run the sign map creator, from the phase-maps
