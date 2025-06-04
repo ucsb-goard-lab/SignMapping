@@ -90,7 +90,7 @@ classdef SignMapper_disk < handle
             % Get the recording data
             data = cell(1,obj.n_recordings);
             for r = 1:obj.n_recordings
-                obj.msgPrinter(sprintf('Processing recording block #%d/%d \n',r,obj.n_recordings));
+                % obj.msgPrinter(sprintf('Processing recording block #%d/%d \n',r,obj.n_recordings));
                 obj.widefieldDFF_abridged(data_loc{r,2,1}, data_loc{r,1,1}, r);
             end
             
@@ -207,10 +207,10 @@ classdef SignMapper_disk < handle
 %                 alt_off_uResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
 %                 alt_off_dResp = zeros(size(data,1),size(data,2),off_frames,repeats,'single');
 
-azi_off_fResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
-azi_off_bResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
-alt_off_uResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
-alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
+                azi_off_fResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
+                azi_off_bResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
+                alt_off_uResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
+                alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
 
                 % extract responses based on timestamps
                 obj.msgPrinter('     (1/3) Extracting responses\n')
@@ -407,11 +407,11 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
                 title(sprintf('Map #%d',ii))
             end
             
-            idx = input('Choose your map # (choose -1 for NONE): '); % Manually choose harmonic
-            if idx == -1
+            idx = input('Choose your map # (choose 0 for NONE): '); % Manually choose harmonic
+            %if idx == 0
                 % Recursive call if none of the maps look okay
-                obj.manualFindRetinotopicMap(fourier_data)
-            end
+                % obj.manualFindRetinotopicMap(fourier_data)
+            % end
             k = obj.harmonic_pool(idx);
         end
         
@@ -740,7 +740,7 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
                     contour(xdom,ydom,im,[.5 .5],'k')
                     title('10. visual areas')
                 catch
-                    obj.msgPrinter('     Unable to fuse/split patches, skipped\n')
+                    obj.msgPrinter('Unable to fuse/split patches, skipped\n')
                 end
                 
                 %% Plot contours
@@ -836,7 +836,7 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
             % important to have 'r', as the current recording for
             % filestructure stuff...
             %% Extracting basic image info (resolution, frames)
-            obj.msgPrinter('     (1/4) Getting image info\n')
+            obj.msgPrinter('(1/4) Getting image info\n')
             info = imfinfo([pn fn]);
             num_images = numel(info);
             
@@ -853,7 +853,7 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
             %             imageRaw = zeros(y_pixels,x_pixels,num_images,'single');
             
             %% Reading images into MATLAB
-            obj.msgPrinter('     (2/4) Reading images\n')
+            obj.msgPrinter(sprintf('(2/4) Reading images (numblocks=%d)\n', num_blocks))
             %             for f = 1:num_images
             %                 imageRaw(:,:,f) = imread([pn fn], 'Index', f, 'Info', info);
             %             end
@@ -862,7 +862,7 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
             
             frame_F = zeros(num_images, 1);
             block_median = zeros(y_pixels, x_pixels, num_blocks, 'single');
-            for b = 1:num_blocks
+            for b = progress(1:num_blocks)
                 idx_vec = (b - 1) * block_size + 1 : min(b * block_size, numel(info));
                 % create
                 img_block = zeros(y_pixels, x_pixels, length(idx_vec), 'single');
@@ -892,7 +892,7 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
             disp(['          Photobleaching: ' num2str(PhotoBl) '%'])
             
             %% Calculating F0 map
-            obj.msgPrinter('     (3/4) Calculating F0 map\n')
+            obj.msgPrinter('(3/4) Calculating F0 map\n')
             F0 = median(block_median, 3); % median of medians
             %             F0 = zeros(y_pixels, x_pixels,'single');
             %             for p = 1:x_pixels
@@ -902,7 +902,7 @@ alt_off_dResp = zeros(size(data, 1), size(data, 2), repeats, 'single');
             %             end
             
             %% Calculating dff
-            obj.msgPrinter('     (4/4) Calculating DFF\n')
+            obj.msgPrinter('(4/4) Calculating DFF\n')
             h5create(obj.data_fn, sprintf('/dff/%d', r), [y_pixels, x_pixels, num_images], 'ChunkSize', [y_pixels, x_pixels, 1]);  
             for img = 1:num_images
                 if mod(img, 100) == 0
