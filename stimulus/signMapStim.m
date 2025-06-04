@@ -1,4 +1,5 @@
-function [  ] = retinotopicMappingStimulus_newscope(  )
+function [  ] = signMapStim(  )
+% prev. named: retinotopicMappingStimulus_newscope
 % Beta retinotopic mapping code
 %   Written KS 180123
 
