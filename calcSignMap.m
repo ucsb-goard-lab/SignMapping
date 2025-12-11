@@ -11,6 +11,18 @@ sm = SignMapper_disk(); % Create the sign mapping object
 
 data_loc = sm.getUserInput(); % Get the input for everything
 
+tif_path = [data_loc{1,2,1}, data_loc{1,1,1}];
+tif_size_GB = dir(data_loc{1,1,1}).bytes / 1e9;
+if tif_size_GB < 5.
+    [pathstr, ~, ~] = fileparts(tif_path);
+    destination = fullfile(pathstr, 'reference_image.tif');
+    copyfile(tif_path, destination);
+    new_tif_name = subroutine_tifConvert(tif_path);
+    [pathstr, name, ext] = fileparts(new_tif_name);
+    data_loc{1,1,1} = [pathstr filesep];
+    data_loc{1,2,1} = [name ext];
+end
+
 [data, stimdata] = sm.getData(data_loc); % Get and process data into a usable state
 
 [aziResp,altResp] = sm.separateResponseData(stimdata); % Separate each recording into the cardinal directions, based on timestamps

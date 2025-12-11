@@ -14,7 +14,7 @@ classdef SignMapper_disk < handle
         data_fn
         h5_hierarchy
         
-        ref_img  double % Surface reference image
+        % ref_img  double % Surface reference image
         maps     struct % Finished maps
         
         autorun_flag logical = false; % For auto-running
@@ -51,7 +51,7 @@ classdef SignMapper_disk < handle
             mkdir('AdditionalSignMapMaterials'); % Additional save directory for supplemental stuff
             maps = obj.Juavinett2017_signMapping(azi,alt); % Run the sign map creator, from the phase-maps
             obj.saveSignMaps(maps); % Save everything
-            obj.exportSignMaps(maps); % Export the overlay image
+            % obj.exportSignMaps(maps); % Export the overlay image
         end
         
         function data_loc = getUserInput(obj) % Get the user input to find the recordings and such
@@ -69,12 +69,17 @@ classdef SignMapper_disk < handle
             
             for ii = 1:obj.n_recordings % Get the stimulus data
                 %obj.msgPrinter(sprintf(' for recording #%d/%d \n',ii,obj.n_recordings))
-                [data_loc{ii,1,2},data_loc{ii,2,2}] = uigetfile(use_init_path+"*.mat", 'Choose stimulus .mat data file');
+                thisFile = mfilename('fullpath');
+                thisFolder = fileparts(thisFile);
+                parentFolder = fileparts(thisFolder);
+                targetFolder = fullfile(parentFolder, 'Stimulus');
+                targetFile   = fullfile(targetFolder, 'generic_stim_file.mat');
+                % [data_loc{ii,1,2},data_loc{ii,2,2}] = uigetfile(use_init_path+"*.mat", 'Choose stimulus .mat data file');
             end
             
             % Get the reference image
             %obj.msgPrinter(sprintf('Lastly, \n'))
-            [data_loc{1,1,3}, data_loc{1,2,3}] = uigetfile(use_init_path+"*.tif", 'Choose your reference image for overlay');       
+            % [data_loc{1,1,3}, data_loc{1,2,3}] = uigetfile(use_init_path+"*.tif", 'Choose your reference image for overlay');       
             
         end
         
@@ -95,12 +100,12 @@ classdef SignMapper_disk < handle
             end
             
             % Get and process the reference image
-            ref_img = imread([data_loc{1,2,3} data_loc{1,1,3}]);
-            try
-                ref_img_mat = rgb2gray(ref_img);
-            catch
-                ref_img_mat = ref_img;
-            end
+            % ref_img = imread([data_loc{1,2,3} data_loc{1,1,3}]);
+            % try
+            %     ref_img_mat = rgb2gray(ref_img);
+            % catch
+            %     ref_img_mat = ref_img;
+            % end
             
             %% this is all junk from when we used to screenshot the refimg, this is gone now...
 %             min_sz = min(size(ref_img_mat)); % Resizing the reference image to match recordings
@@ -117,7 +122,7 @@ classdef SignMapper_disk < handle
             % Store all the values into the corresponding property
             obj.stimdata = stimdata;
 %             obj.data = data;
-            obj.ref_img = ref_img_mat;
+            % obj.ref_img = ref_img_mat;
         end
         
         
@@ -143,14 +148,14 @@ classdef SignMapper_disk < handle
             blank_start = round(stimdata.blank_on * obj.fs);
             
             % preallocate
-            on_resp = zeros(size(obj.ref_img, 1), size(obj.ref_img, 2), on_frames, repeats, 'single');
-            off_resp = zeros(size(obj.ref_img, 1), size(obj.ref_img, 2), off_frames, repeats, 'single');
+            on_resp = zeros(size(obj.widefieldDFF_abridged, 1), size(obj.widefieldDFF_abridged, 2), on_frames, repeats, 'single');
+            off_resp = zeros(size(obj.widefieldDFF_abridged, 1), size(obj.widefieldDFF_abridged, 2), off_frames, repeats, 'single');
             
             % split it out
             for rep = 1:repeats
                 disp(rep)
-                on_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, sweep_start(rep, idx) + 1], [size(obj.ref_img, 1), size(obj.ref_img, 2), on_frames]); % read it in immediately,
-                off_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, blank_start(rep, idx) + 1], [size(obj.ref_img, 1), size(obj.ref_img, 2), off_frames]);
+                on_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, sweep_start(rep, idx) + 1], [size(obj.widefieldDFF_abridged, 1), size(obj.widefieldDFF_abridged, 2), on_frames]); % read it in immediately,
+                off_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, blank_start(rep, idx) + 1], [size(obj.widefieldDFF_abridged, 1), size(obj.widefieldDFF_abridged, 2), off_frames]);
             end
             
             % Overwriting variables to keep sizes down
@@ -162,7 +167,7 @@ classdef SignMapper_disk < handle
         
         function [aziResp, altResp] = separateResponseData(obj,raw_stimdata)        
         
-            [aziResp_f, aziResp_b, altResp_u, altResp_d] = deal(zeros(size(obj.ref_img, 1), size(obj.ref_img, 2), raw_stimdata{1}.on_time*obj.fs, 'single'));
+            [aziResp_f, aziResp_b, altResp_u, altResp_d] = deal(zeros(size(obj.widefieldDFF_abridged, 1), size(obj.widefieldDFF_abridged, 2), raw_stimdata{1}.on_time*obj.fs, 'single'));
             for r = 1:obj.n_recordings
                 obj.msgPrinter(sprintf('Separating recording block #%d/%d \n',r,obj.n_recordings));
                 
@@ -407,7 +412,8 @@ classdef SignMapper_disk < handle
                 title(sprintf('Map #%d',ii))
             end
             
-            idx = input('Choose your map # (choose 0 for NONE): '); % Manually choose harmonic
+            obj.msgPrinter('Using default harmonic (h=1).\n')
+            idx = 1; % input('Choose your map # (choose 0 for NONE): '); % Manually choose harmonic
             %if idx == 0
                 % Recursive call if none of the maps look okay
                 % obj.manualFindRetinotopicMap(fourier_data)
@@ -445,33 +451,33 @@ classdef SignMapper_disk < handle
             save('additional_maps.mat','maps');
         end
         
-        function exportSignMaps(obj,maps)
-            if nargin < 2
-                maps = obj.maps;
-            end
+        % function exportSignMaps(obj,maps)
+        %     if nargin < 2
+        %         maps = obj.maps;
+        %     end
             
-            figure('units','normalized','outerposition',[0.22 0 0.6 1]) % standard widescreen 1920x1080p
+            % figure('units','normalized','outerposition',[0.22 0 0.6 1]) % standard widescreen 1920x1080p
             
-            refimg = maps.ReferenceImage;
-            bound = maps.VFS_boundaries;
-            refimg(bound) = max(refimg(:))*1.1;
-            imagesc(refimg)
-            axis off
-            axis square
+            % refimg = maps.ReferenceImage;
+            % bound = maps.VFS_boundaries;
+            % refimg(bound) = max(refimg(:))*1.1;
+            % imagesc(refimg)
+            % axis off
+            % axis square
             
-            axes('Position',[0.155 0.775 0.15 0.15])
-            imagesc(maps.VFS_raw)
-            axis square
-            axis off
+            % axes('Position',[0.155 0.775 0.15 0.15])
+            % imagesc(maps.VFS_raw)
+            % axis square
+            % axis off
             
-            ax = findobj(gcf,'Type','axes');
-            ax(1).Colormap = jet;
-            ax(2).Colormap = gray;
+            % ax = findobj(gcf,'Type','axes');
+            % ax(1).Colormap = jet;
+            % ax(2).Colormap = gray;
             
             
-            saveas(gcf,'overlay_map.jpg')
-            close
-        end
+            % saveas(gcf,'overlay_map.jpg')
+            % close
+        % end
         
         % Don't open this unless you want to have a bad time, adapted from
         % Juavinett, A. L., Nauhaus, I., Garrett, M. E., Zhuang, J., & Callaway, E. M. (2017).
