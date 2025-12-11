@@ -1,7 +1,5 @@
 function calcSignMap()
 % Written 06Aug2019 KS
-
-
 % Adding necessary paths to access the code for sign mapping
 curr_script_dir = mfilename('fullpath');
 parent_script_dir = curr_script_dir(1:end-length(mfilename)); % -11 to get rid of the filename
