@@ -20,6 +20,10 @@ classdef SignMapper_disk < handle
         autorun_flag logical = false; % For auto-running
         
         n_recordings double
+
+        x_pixels = nan;
+        y_pixels = nan;
+        data_loc = nan;
     end
     
     methods
@@ -74,13 +78,16 @@ classdef SignMapper_disk < handle
                 parentFolder = fileparts(thisFolder);
                 targetFolder = fullfile(parentFolder, 'Stimulus');
                 targetFile   = fullfile(targetFolder, 'generic_stim_file.mat');
+                [pathstr, name, ext] = fileparts(targetFile);
+                data_loc{ii,2,2} = [pathstr filesep];
+                data_loc{ii,1,2} = [name ext];
                 % [data_loc{ii,1,2},data_loc{ii,2,2}] = uigetfile(use_init_path+"*.mat", 'Choose stimulus .mat data file');
             end
             
             % Get the reference image
             %obj.msgPrinter(sprintf('Lastly, \n'))
             % [data_loc{1,1,3}, data_loc{1,2,3}] = uigetfile(use_init_path+"*.tif", 'Choose your reference image for overlay');       
-            
+            obj.data_loc = data_loc;
         end
         
         function [data, stimdata] = getData(obj, data_loc)
@@ -148,14 +155,14 @@ classdef SignMapper_disk < handle
             blank_start = round(stimdata.blank_on * obj.fs);
             
             % preallocate
-            on_resp = zeros(size(obj.widefieldDFF_abridged, 1), size(obj.widefieldDFF_abridged, 2), on_frames, repeats, 'single');
-            off_resp = zeros(size(obj.widefieldDFF_abridged, 1), size(obj.widefieldDFF_abridged, 2), off_frames, repeats, 'single');
+            on_resp = zeros(obj.x_pixels, obj.y_pixels, on_frames, repeats, 'single');
+            off_resp = zeros(obj.x_pixels, obj.y_pixels, off_frames, repeats, 'single');
             
             % split it out
             for rep = 1:repeats
                 disp(rep)
-                on_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, sweep_start(rep, idx) + 1], [size(obj.widefieldDFF_abridged, 1), size(obj.widefieldDFF_abridged, 2), on_frames]); % read it in immediately,
-                off_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, blank_start(rep, idx) + 1], [size(obj.widefieldDFF_abridged, 1), size(obj.widefieldDFF_abridged, 2), off_frames]);
+                on_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, sweep_start(rep, idx) + 1], [obj.x_pixels, obj.y_pixels, on_frames]); % read it in immediately,
+                off_resp(:, :, :, rep) = h5read(obj.data_fn, sprintf('/dff/%d', rec), [1, 1, blank_start(rep, idx) + 1], [obj.x_pixels, obj.y_pixels, off_frames]);
             end
             
             % Overwriting variables to keep sizes down
@@ -165,9 +172,18 @@ classdef SignMapper_disk < handle
             end
         end
         
-        function [aziResp, altResp] = separateResponseData(obj,raw_stimdata)        
+        function [aziResp, altResp] = separateResponseData(obj,raw_stimdata) 
+
+            pn = obj. data_loc{1,1,1};
+            fn = obj.data_loc{1,2,1};
+
+            info = imfinfo([pn fn]);
+            num_images = numel(info);
+            
+            obj.x_pixels = info(1).Width;
+            obj.y_pixels = info(1).Height;
         
-            [aziResp_f, aziResp_b, altResp_u, altResp_d] = deal(zeros(size(obj.widefieldDFF_abridged, 1), size(obj.widefieldDFF_abridged, 2), raw_stimdata{1}.on_time*obj.fs, 'single'));
+            [aziResp_f, aziResp_b, altResp_u, altResp_d] = deal(zeros(obj.x_pixels, obj.y_pixels, raw_stimdata{1}.on_time*obj.fs, 'single'));
             for r = 1:obj.n_recordings
                 obj.msgPrinter(sprintf('Separating recording block #%d/%d \n',r,obj.n_recordings));
                 
@@ -848,6 +864,9 @@ classdef SignMapper_disk < handle
             
             x_pixels = info(1).Width;
             y_pixels = info(1).Height;
+
+            obj.x_pixels = x_pixels;
+            obj.y_pixels = y_pixels;
             
             % create the file to save to
                         
@@ -867,11 +886,11 @@ classdef SignMapper_disk < handle
             % read in a block. do.. median and mean (frame_F)
             
             frame_F = zeros(num_images, 1);
-            block_median = zeros(y_pixels, x_pixels, num_blocks, 'single');
+            block_median = zeros(obj.y_pixels, obj.x_pixels, num_blocks, 'single');
             for b = progress(1:num_blocks)
                 idx_vec = (b - 1) * block_size + 1 : min(b * block_size, numel(info));
                 % create
-                img_block = zeros(y_pixels, x_pixels, length(idx_vec), 'single');
+                img_block = zeros(obj.y_pixels, obj.x_pixels, length(idx_vec), 'single');
                 for idx = 1:size(img_block, 3)
                     img_block(:, :, idx) = imread([pn, fn], 'Index', idx_vec(idx), 'Info', info);
                 end
@@ -909,7 +928,7 @@ classdef SignMapper_disk < handle
             
             %% Calculating dff
             obj.msgPrinter('(4/4) Calculating DFF\n')
-            h5create(obj.data_fn, sprintf('/dff/%d', r), [y_pixels, x_pixels, num_images], 'ChunkSize', [y_pixels, x_pixels, 1]);  
+            h5create(obj.data_fn, sprintf('/dff/%d', r), [obj.y_pixels, obj.x_pixels, num_images], 'ChunkSize', [obj.y_pixels, obj.x_pixels, 1]);  
             for img = 1:num_images
                 if mod(img, 100) == 0
                     fprintf('Img %d/%d\n', img, num_images)
@@ -917,7 +936,7 @@ classdef SignMapper_disk < handle
                 end
                 curr_image = imread([pn, fn], 'Index', img, 'Info', info);
                 dff = ((single(curr_image) - F0)./F0) * 100;
-                h5write(obj.data_fn, sprintf('/dff/%d', r), dff, [1, 1, img], [y_pixels, x_pixels, 1]) 
+                h5write(obj.data_fn, sprintf('/dff/%d', r), dff, [1, 1, img], [obj.y_pixels, obj.x_pixels, 1]) 
             end
             %{
             % now we gotta re-read it all in...
